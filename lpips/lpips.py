@@ -13,6 +13,7 @@ from PIL import Image
 import torchvision.transforms as transforms
 
 import lpips
+import pdb
 
 def spatial_average(in_tens, keepdim=True):
     return in_tens.mean([2,3],keepdim=keepdim)
@@ -84,7 +85,9 @@ class LPIPS(nn.Module):
         if(eval_mode):
             self.eval()
 
-    def forward(self, in0, in1, retPerLayer=False, normalize=False):
+    def forward(self, input, normalize=True):
+        in0 = input[0:1]
+        in1 = input[1:2]
         if normalize: # turn on this flag if input is [0,1] so it can be adjusted to [-1, +1]
             in0 = 2 * in0  - 1
             in1 = 2 * in1  - 1
@@ -123,10 +126,7 @@ class LPIPS(nn.Module):
         # embed()
         # return 10*torch.log10(b/a)
         
-        if(retPerLayer):
-            return (val, res)
-        else:
-            return val
+        return val
 
 
 class ScalingLayer(nn.Module):
@@ -257,7 +257,7 @@ def model_device():
 def get_model():
     """Create model."""
     model_setenv()
-    model = LPIPS(net='alex', spatial=True)
+    model = LPIPS(net='vgg', spatial=True)
     return model
 
 
@@ -291,8 +291,7 @@ def export_onnx():
     from onnx import optimizer
 
     onnx_file_name = "output/image_ganloss.onnx"
-    dummy_input1 = torch.randn(1, 3, 256, 256).cuda()
-    dummy_input2 = torch.randn(1, 3, 256, 256).cuda()
+    dummy_input = torch.randn(2, 3, 256, 256).cuda()
 
     # 1. Create and load model.
     torch_model = get_model()
@@ -304,7 +303,7 @@ def export_onnx():
 
     input_names = ["input"]
     output_names = ["output"]
-    torch.onnx.export(torch_model, (dummy_input1, dummy_input1), onnx_file_name,
+    torch.onnx.export(torch_model, dummy_input, onnx_file_name,
                       input_names=input_names,
                       output_names=output_names,
                       verbose=True,
@@ -337,15 +336,13 @@ def verify_onnx():
     def to_numpy(tensor):
         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
-    dummy_input1 = torch.randn(1, 3, 256, 256)
-    dummy_input2 = torch.randn(1, 3, 256, 256)
+    dummy_input = torch.randn(2, 3, 256, 256)
 
     with torch.no_grad():
-        torch_output = torch_model(dummy_input1, dummy_input2)
+        torch_output = torch_model(dummy_input)
 
     onnxruntime_inputs = {
-        onnxruntime_engine.get_inputs()[0].name: to_numpy(dummy_input1),
-        onnxruntime_engine.get_inputs()[1].name: to_numpy(dummy_input2),
+        onnxruntime_engine.get_inputs()[0].name: to_numpy(dummy_input),
     }
 
     onnxruntime_outputs = onnxruntime_engine.run(None, onnxruntime_inputs)
@@ -353,9 +350,9 @@ def verify_onnx():
         to_numpy(torch_output), onnxruntime_outputs[0], rtol=1e-02, atol=1e-02)
     print("Loss onnx model has been tested with ONNXRuntime, the result sounds good !")
 
-def test_sample():
-    """Predict."""
 
+def test_sample():
+    """Test."""
     model_setenv()
     model = get_model()
     device = model_device()
@@ -364,21 +361,22 @@ def test_sample():
 
     totensor = transforms.ToTensor()
 
-    ex_ref = totensor(Image.open('output/ex_ref.png')) - 0.5;
-    ex_p0 = totensor(Image.open('output/ex_p0.png')) - 0.5;
-    ex_p1 = totensor(Image.open('output/ex_p1.png')) - 0.5;
+    ex_ref = totensor(Image.open('output/ex_ref.png'));
+    ex_p0 = totensor(Image.open('output/ex_p0.png'));
+    ex_p1 = totensor(Image.open('output/ex_p1.png'));
     ex_ref = ex_ref.unsqueeze(0).to(device)
     ex_p0 = ex_p0.unsqueeze(0).to(device)
     ex_p1 = ex_p1.unsqueeze(0).to(device)
 
+    # model default accept input as [0, 1]
     with torch.no_grad():
-        ex_d0 = model(ex_ref, ex_p0)
-        ex_d1 = model(ex_ref, ex_p1)
-        ex_d2 = model(ex_ref, ex_ref)
-        ex_d3 = model(ex_p0, ex_p1)
-        ex_d4 = model(ex_p1, ex_p0)
+        ex_d0 = model(torch.cat([ex_ref, ex_p0], dim=0))
+        ex_d1 = model(torch.cat([ex_ref, ex_p1], dim=0))
+        ex_d2 = model(torch.cat([ex_ref, ex_ref], dim = 0))
+        ex_d3 = model(torch.cat([ex_p0, ex_p1], dim = 0))
+        ex_d4 = model(torch.cat([ex_p1, ex_p0], dim=0))
     
-    print('Loss: (%.3f, %.3f, %.3f, %.3f, %.3f)'%
+    print('Loss: (%.3f, %.3f, %.3f, %.3f, %.3f)'% 
         (ex_d0.mean(), ex_d1.mean(), ex_d2.mean(), ex_d3.mean(), ex_d4.mean()))
 
 
