@@ -375,8 +375,11 @@ def test_sample():
         ex_d0 = model(ex_ref, ex_p0)
         ex_d1 = model(ex_ref, ex_p1)
         ex_d2 = model(ex_ref, ex_ref)
+        ex_d3 = model(ex_p0, ex_p1)
+        ex_d4 = model(ex_p1, ex_p0)
     
-    print('Loss: (%.3f, %.3f, %.3f)'%(ex_d0.mean(), ex_d1.mean(), ex_d2.mean()))
+    print('Loss: (%.3f, %.3f, %.3f, %.3f, %.3f)'%
+        (ex_d0.mean(), ex_d1.mean(), ex_d2.mean(), ex_d3.mean(), ex_d4.mean()))
 
 
 if __name__ == '__main__':
