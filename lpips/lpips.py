@@ -6,8 +6,11 @@ import torch.nn as nn
 import torch.nn.init as init
 from torch.autograd import Variable
 import numpy as np
-from . import pretrained_networks as pn
+import pretrained_networks as pn
 import torch.nn
+import onnxruntime
+from PIL import Image
+import torchvision.transforms as transforms
 
 import lpips
 
@@ -17,6 +20,10 @@ def spatial_average(in_tens, keepdim=True):
 def upsample(in_tens, out_HW=(64,64)): # assumes scale factor is same for H and W
     in_H, in_W = in_tens.shape[2], in_tens.shape[3]
     return nn.Upsample(size=out_HW, mode='bilinear', align_corners=False)(in_tens)
+
+def normalize_tensor(in_feat,eps=1e-10):
+    norm_factor = torch.sqrt(torch.sum(in_feat**2,dim=1,keepdim=True))
+    return in_feat/(norm_factor+eps)
 
 # Learned perceptual metric
 class LPIPS(nn.Module):
@@ -88,7 +95,7 @@ class LPIPS(nn.Module):
         feats0, feats1, diffs = {}, {}, {}
 
         for kk in range(self.L):
-            feats0[kk], feats1[kk] = lpips.normalize_tensor(outs0[kk]), lpips.normalize_tensor(outs1[kk])
+            feats0[kk], feats1[kk] = normalize_tensor(outs0[kk]), normalize_tensor(outs1[kk])
             diffs[kk] = (feats0[kk]-feats1[kk])**2
 
         if(self.lpips):
@@ -217,3 +224,188 @@ def print_network(net):
         num_params += param.numel()
     print('Network',net)
     print('Total number of parameters: %d' % num_params)
+
+
+def model_setenv():
+    """Setup environ  ..."""
+
+    # random init ...
+    import random
+    import time
+
+    random_seed = int(time.time() % 1000)
+    random.seed(random_seed)
+    torch.manual_seed(random_seed)
+
+    # Set default device to avoid exceptions
+    if os.environ.get("DEVICE") != "cuda" and os.environ.get("DEVICE") != "cpu":
+        os.environ["DEVICE"] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    if os.environ["DEVICE"] == 'cuda':
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+
+    print("Running Environment:")
+    print("----------------------------------------------")
+    print("  PWD: ", os.environ["PWD"])
+    print("  DEVICE: ", os.environ["DEVICE"])
+
+def model_device():
+    """Please call after model_setenv. """
+    return torch.device(os.environ["DEVICE"])
+
+def get_model():
+    """Create model."""
+    model_setenv()
+    model = LPIPS(net='alex', spatial=True)
+    return model
+
+
+def onnx_model_load(onnx_file):
+    sess_options = onnxruntime.SessionOptions()
+    # sess_options.log_severity_level = 0
+
+    # Set graph optimization level
+    sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+
+    onnx_model = onnxruntime.InferenceSession(onnx_file, sess_options)
+    # onnx_model.set_providers(['CUDAExecutionProvider'])
+    print("Onnx model engine: ", onnx_model.get_providers(), "Device: ", onnxruntime.get_device())
+
+    return onnx_model
+
+def onnx_model_forward(onnx_model, input):
+    def to_numpy(tensor):
+        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+    onnxruntime_inputs = {onnx_model.get_inputs()[0].name: to_numpy(input)}
+    onnxruntime_outputs = onnx_model.run(None, onnxruntime_inputs)
+    return torch.from_numpy(onnxruntime_outputs[0])
+
+def export_onnx():
+    """Export onnx model."""
+
+    import numpy as np
+    import onnx
+    import onnxruntime
+    from onnx import optimizer
+
+    onnx_file_name = "output/image_ganloss.onnx"
+    dummy_input1 = torch.randn(1, 3, 256, 256).cuda()
+    dummy_input2 = torch.randn(1, 3, 256, 256).cuda()
+
+    # 1. Create and load model.
+    torch_model = get_model()
+    torch_model = torch_model.cuda()
+    torch_model.eval()
+
+    # 2. Model export
+    print("Export decoder model ...")
+
+    input_names = ["input"]
+    output_names = ["output"]
+    torch.onnx.export(torch_model, (dummy_input1, dummy_input1), onnx_file_name,
+                      input_names=input_names,
+                      output_names=output_names,
+                      verbose=True,
+                      opset_version=11,
+                      keep_initializers_as_inputs=False,
+                      export_params=True)
+
+    # 3. Optimize model
+    print('Checking model ...')
+    onnx_model = onnx.load(onnx_file_name)
+    onnx.checker.check_model(onnx_model)
+    onnx.helper.printable_graph(onnx_model.graph)
+    # https://github.com/onnx/optimizer
+
+    # 4. Visual model
+    # python -c "import netron; netron.start('output/image_ganloss.onnx')"
+
+def verify_onnx():
+    """Verify onnx model."""
+
+    import numpy as np
+    import onnxruntime
+
+    # ------- For Transformer -----------------------
+    onnx_file_name = "output/image_ganloss.onnx"
+    torch_model = get_model()
+    torch_model.eval()
+    onnxruntime_engine = onnx_model_load(onnx_file_name)
+
+    def to_numpy(tensor):
+        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+    dummy_input1 = torch.randn(1, 3, 256, 256)
+    dummy_input2 = torch.randn(1, 3, 256, 256)
+
+    with torch.no_grad():
+        torch_output = torch_model(dummy_input1, dummy_input2)
+
+    onnxruntime_inputs = {
+        onnxruntime_engine.get_inputs()[0].name: to_numpy(dummy_input1),
+        onnxruntime_engine.get_inputs()[1].name: to_numpy(dummy_input2),
+    }
+
+    onnxruntime_outputs = onnxruntime_engine.run(None, onnxruntime_inputs)
+    np.testing.assert_allclose(
+        to_numpy(torch_output), onnxruntime_outputs[0], rtol=1e-02, atol=1e-02)
+    print("Loss onnx model has been tested with ONNXRuntime, the result sounds good !")
+
+def test_sample():
+    """Predict."""
+
+    model_setenv()
+    model = get_model()
+    device = model_device()
+    model = model.to(device)
+    model.eval()
+
+    totensor = transforms.ToTensor()
+
+    ex_ref = totensor(Image.open('output/ex_ref.png')) - 0.5;
+    ex_p0 = totensor(Image.open('output/ex_p0.png')) - 0.5;
+    ex_p1 = totensor(Image.open('output/ex_p1.png')) - 0.5;
+    ex_ref = ex_ref.unsqueeze(0).to(device)
+    ex_p0 = ex_p0.unsqueeze(0).to(device)
+    ex_p1 = ex_p1.unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        ex_d0 = model(ex_ref, ex_p0)
+        ex_d1 = model(ex_ref, ex_p1)
+        ex_d2 = model(ex_ref, ex_ref)
+    
+    print('Loss: (%.3f, %.3f, %.3f)'%(ex_d0.mean(), ex_d1.mean(), ex_d2.mean()))
+
+
+if __name__ == '__main__':
+    """Test Tools ..."""
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--export', help="Export onnx model", action='store_true')
+    parser.add_argument(
+        '--verify', help="Verify onnx model", action='store_true')
+    parser.add_argument(
+        '--test', help="Test", action='store_true')
+
+    parser.add_argument('--output', type=str,
+                        default="output", help="output folder")
+
+    args = parser.parse_args()
+
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+
+    if args.export:
+        export_onnx()
+
+    if args.verify:
+        verify_onnx()
+
+    if args.test:
+        test_sample()
+
