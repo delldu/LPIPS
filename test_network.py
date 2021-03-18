@@ -1,6 +1,7 @@
 import torch
 import lpips
 from IPython import embed
+import pdb
 
 use_gpu = False         # Whether to use GPU
 spatial = True         # Return a spatial map of perceptual distance.
@@ -28,6 +29,8 @@ if(use_gpu):
 	ex_ref = ex_ref.cuda()
 	ex_p0 = ex_p0.cuda()
 	ex_p1 = ex_p1.cuda()
+
+pdb.set_trace()
 
 ex_d0 = loss_fn.forward(ex_ref,ex_p0)
 ex_d1 = loss_fn.forward(ex_ref,ex_p1)
