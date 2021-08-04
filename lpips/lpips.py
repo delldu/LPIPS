@@ -14,6 +14,8 @@ import torchvision.transforms as transforms
 
 import pdb
 
+onnx_file_name = "output/image_lploss.onnx"
+
 
 def upsample(in_tens, out_HW=(64, 64)):  # assumes scale factor is same for H and W
     in_H, in_W = in_tens.shape[2], in_tens.shape[3]
@@ -209,17 +211,15 @@ def onnx_model_forward(onnx_model, input):
 def export_onnx():
     """Export onnx model."""
 
-    onnx_file_name = "output/image_lploss.onnx"
-    dummy_input = torch.randn(2, 3, 64, 64).cuda()
-
     # 1. Create and load model.
     torch_model = get_model()
     torch_model = torch_model.cuda()
     torch_model.eval()
 
     # 2. Model export
-    print("Export decoder model ...")
+    print("Export model {} ...".format(onnx_file_name))
 
+    dummy_input = torch.randn(2, 3, 64, 64).cuda()
     input_names = ["input"]
     output_names = ["output"]
     torch.onnx.export(
@@ -235,7 +235,7 @@ def export_onnx():
     )
 
     # 3. Optimize model
-    print("Checking model ...")
+    print("Checking model {}...".format(onnx_file_name))
     onnx_model = onnx.load(onnx_file_name)
     onnx.checker.check_model(onnx_model)
     onnx.helper.printable_graph(onnx_model.graph)
@@ -248,7 +248,8 @@ def export_onnx():
 def verify_onnx():
     """Verify onnx model."""
 
-    onnx_file_name = "output/image_lploss.onnx"
+    print("Verify model {} ...".format(onnx_file_name))
+
     torch_model = get_model()
     torch_model.eval()
     onnxruntime_engine = onnx_model_load(onnx_file_name)
@@ -265,7 +266,11 @@ def verify_onnx():
     np.testing.assert_allclose(
         to_numpy(torch_output), onnxruntime_outputs[0], rtol=1e-02, atol=1e-02
     )
-    print("Onnx model tested with ONNXRuntime, result sounds good !")
+    print(
+        "Onnx model {} verified with ONNXRuntime, result sounds good !".format(
+            onnx_file_name
+        )
+    )
 
 
 def test_sample():
@@ -285,7 +290,7 @@ def test_sample():
     ex_p0 = ex_p0.unsqueeze(0).to(device)
     ex_p1 = ex_p1.unsqueeze(0).to(device)
 
-    # model default accept input as [0, 1]
+    # model accept input as [0, 1]
     with torch.no_grad():
         ex_d0 = model(torch.cat([ex_ref, ex_p0], dim=0))
         ex_d1 = model(torch.cat([ex_ref, ex_p1], dim=0))
