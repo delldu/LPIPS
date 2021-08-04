@@ -267,7 +267,7 @@ def verify_onnx():
     np.testing.assert_allclose(
         to_numpy(torch_output), onnxruntime_outputs[0], rtol=1e-02, atol=1e-02
     )
-    print("Loss onnx model tested with ONNXRuntime, result sounds good !")
+    print("Onnx model tested with ONNXRuntime, result sounds good !")
 
 
 def test_sample():
