@@ -210,8 +210,8 @@ def onnx_model_forward(onnx_model, input):
 def export_onnx():
     """Export onnx model."""
 
-    onnx_file_name = "output/image_ploss.onnx"
-    dummy_input = torch.randn(2, 3, 256, 256).cuda()
+    onnx_file_name = "output/image_lploss.onnx"
+    dummy_input = torch.randn(2, 3, 64, 64).cuda()
 
     # 1. Create and load model.
     torch_model = get_model()
@@ -243,19 +243,18 @@ def export_onnx():
     # https://github.com/onnx/optimizer
 
     # 4. Visual model
-    # python -c "import netron; netron.start('output/image_ploss.onnx')"
+    # python -c "import netron; netron.start('output/image_lploss.onnx')"
 
 
 def verify_onnx():
     """Verify onnx model."""
 
-    # ------- For Transformer -----------------------
-    onnx_file_name = "output/image_ploss.onnx"
+    onnx_file_name = "output/image_lploss.onnx"
     torch_model = get_model()
     torch_model.eval()
     onnxruntime_engine = onnx_model_load(onnx_file_name)
 
-    dummy_input = torch.randn(2, 3, 256, 256)
+    dummy_input = torch.randn(2, 3, 64, 64)
     with torch.no_grad():
         torch_output = torch_model(dummy_input)
 
