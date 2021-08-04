@@ -1,3 +1,6 @@
+import os
+import inspect
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -57,9 +60,6 @@ class LPIPS(nn.Module):
             self.lin6 = NetLinLayer(self.channels[6])
             self.lins += [self.lin5, self.lin6]
         self.lins = nn.ModuleList(self.lins)
-
-        import inspect
-        import os
 
         model_path = os.path.abspath(
             os.path.join(
@@ -140,7 +140,6 @@ class NetLinLayer(nn.Module):
 def model_setenv():
     """Setup environ  ..."""
 
-    # random init ...
     import random
     import time
 
