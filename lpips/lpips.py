@@ -78,7 +78,7 @@ class LPIPS(nn.Module):
         image_0 = input[0:1]
         image_1 = input[1:2]
 
-        # Move input from [0,1] [-1, +1]
+        # Move input values from [0,1] [-1, +1]
         image_0 = 2 * image_0 - 1
         image_1 = 2 * image_1 - 1
 
@@ -94,6 +94,12 @@ class LPIPS(nn.Module):
             features_1[k] = normalize_tensor(output_1[k])
 
             difference[k] = (features_0[k] - features_1[k]) ** 2
+
+        # features_0[0].size() -- [1, 64, 64, 64]  -- 256K
+        # features_0[1].size() -- [1, 128, 32, 32] -- 128K
+        # features_0[2].size() -- [1, 256, 16, 16] -- 64k
+        # features_0[3].size() -- [1, 512, 8, 8] -- 32k
+        # features_0[4].size() -- [1, 512, 4, 4] -- 8K
 
         res = [
             upsample(self.lins[k](difference[k]), out_HW=image_0.shape[2:])
@@ -171,7 +177,7 @@ def model_device():
 def get_model():
     """Create model."""
     model_setenv()
-    model = LPIPS(net="vgg")
+    model = LPIPS(net="squeeze")
     return model
 
 
