@@ -9,7 +9,6 @@
 # ************************************************************************************/
 #
 
-
 import os
 
 import torch
@@ -19,7 +18,8 @@ from . import backbones
 import pdb
 
 
-def upsample(in_tens, out_HW=(64, 64)):  # assumes scale factor is same for H and W
+def upsample(in_tens, out_HW=(64, 64)):
+    # assumes scale factor is same for H and W
     in_H, in_W = in_tens.shape[2], in_tens.shape[3]
     return nn.Upsample(size=out_HW, mode="bilinear", align_corners=False)(in_tens)
 
@@ -54,25 +54,23 @@ class LPIPS(nn.Module):
 
         self.net = net_type()
 
-        self.lin0 = NetLinLayer(self.channels[0])
-        self.lin1 = NetLinLayer(self.channels[1])
-        self.lin2 = NetLinLayer(self.channels[2])
-        self.lin3 = NetLinLayer(self.channels[3])
-        self.lin4 = NetLinLayer(self.channels[4])
+        self.lin0 = LinearLayer(self.channels[0])
+        self.lin1 = LinearLayer(self.channels[1])
+        self.lin2 = LinearLayer(self.channels[2])
+        self.lin3 = LinearLayer(self.channels[3])
+        self.lin4 = LinearLayer(self.channels[4])
         self.lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
         if self.pnet_type == "squeeze":  # 7 layers for squeezenet
-            self.lin5 = NetLinLayer(self.channels[5])
-            self.lin6 = NetLinLayer(self.channels[6])
+            self.lin5 = LinearLayer(self.channels[5])
+            self.lin6 = LinearLayer(self.channels[6])
             self.lins += [self.lin5, self.lin6]
         self.lins = nn.ModuleList(self.lins)
 
+        # load self weights
         model_path = os.path.dirname(__file__) + f"/models/v{version}/{net}.pth"
         self.load_state_dict(torch.load(model_path, map_location="cpu"), strict=False)
 
-    def forward(self, input):
-        image_0 = input[0:1]
-        image_1 = input[1:2]
-
+    def forward(self, image_0, image_1):
         # Move input values from [0,1] [-1, +1]
         image_0 = 2 * image_0 - 1
         image_1 = 2 * image_1 - 1
@@ -96,14 +94,13 @@ class LPIPS(nn.Module):
         # features_0[2].size() -- [1, 256, 16, 16] -- 64k
         # features_0[3].size() -- [1, 512, 8, 8] -- 32k
         # features_0[4].size() -- [1, 512, 4, 4] -- 8K
-
         res = [upsample(self.lins[k](difference[k]), out_HW=image_0.shape[2:]) for k in range(self.L)]
 
         val = res[0]
         for l in range(1, self.L):
             val += res[l]
 
-        return val
+        return val.mean().cpu()
 
 
 class ScalingLayer(nn.Module):
@@ -116,11 +113,11 @@ class ScalingLayer(nn.Module):
         return (inp - self.shift) / self.scale
 
 
-class NetLinLayer(nn.Module):
+class LinearLayer(nn.Module):
     """A single linear layer which does a 1x1 conv"""
 
     def __init__(self, chn_in, chn_out=1):
-        super(NetLinLayer, self).__init__()
+        super(LinearLayer, self).__init__()
 
         layers = [
             nn.Dropout(),

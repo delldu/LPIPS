@@ -16,6 +16,7 @@ import torch.nn as nn
 from torchvision import models
 import pdb
 
+
 class squeezenet(nn.Module):
     def __init__(self):
         super(squeezenet, self).__init__()

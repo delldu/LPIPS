@@ -24,7 +24,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/delldu/LPIPS",
     packages=["image_likeness"],
-    package_data={"image_likeness": ['models/v0.0/*.pth','models/v0.1/*.pth']},
+    package_data={"image_likeness": ["models/*.pth", "models/v0.0/*.pth", "models/v0.1/*.pth"]},
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -34,7 +34,5 @@ setup(
     install_requires=[
         "torch >= 1.5.0",
         "torchvision >= 0.6.0",
-        "Pillow >= 7.2.0",
-        # "numpy >= 1.19.5",
     ],
 )

@@ -1,5 +1,3 @@
-
-
 import image_likeness
 
 from PIL import Image
@@ -26,26 +24,16 @@ def test_model(model_name):
     start_time = time.time()
     for i in range(100):
         with torch.no_grad():
-            ex_d0 = model(torch.cat([ex_ref, ex_p0], dim=0))
-            ex_d1 = model(torch.cat([ex_ref, ex_p1], dim=0))
-            ex_d2 = model(torch.cat([ex_ref, ex_ref], dim=0))
-            ex_d3 = model(torch.cat([ex_p0, ex_p1], dim=0))
-            ex_d4 = model(torch.cat([ex_p1, ex_p0], dim=0))
+            ex_d0 = model(ex_ref, ex_p0)
+            ex_d1 = model(ex_ref, ex_p1)
+            ex_d2 = model(ex_ref, ex_ref)
+            ex_d3 = model(ex_p0, ex_p1)
+            ex_d4 = model(ex_p1, ex_p0)
 
-    print(f"{model_name} spend time: ", time.time() - start_time)
-    print(
-        "Loss: (ref-p0: %.3f > ref-p1: %.3f)" % (ex_d0.mean(), ex_d1.mean())
-    )
-
-    print(
-        "Loss: (ref-ref: %.3f) == 0.00" % (ex_d2.mean())
-    )
-
-    print(
-        "Loss: (p0-p1: %.3f == p1-p0: %.3f)" % (ex_d3.mean(), ex_d4.mean())
-    )
-
-
+    print(f"{model_name} spend time: { time.time() - start_time} seconds for 10 times",)
+    print("    Loss: ref-p0: %.3f > ref-p1: %.3f" % (ex_d0, ex_d1))
+    print("    Loss: ref-ref: %.3f == 0.00" % (ex_d2))
+    print("    Loss: p0-p1: %.3f == p1-p0: %.3f" % (ex_d3, ex_d4))
 
 
 if __name__ == "__main__":

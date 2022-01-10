@@ -7,7 +7,7 @@ all:
 
 format:
 	@echo
-	find image_likeness -name "*.py" -exec black -l 120 {} \;
+	find -name "*.py" -exec black -l 120 {} \;
 
 install:
 	python setup.py install
