@@ -1,8 +1,20 @@
+"""Image Likeness Package."""  # coding=utf-8
+#
+# /************************************************************************************
+# ***
+# ***    Copyright Dell 2021, All Rights Reserved.
+# ***
+# ***    File Author: Dell, 2021年 12月 14日 星期二 00:22:28 CST
+# ***
+# ************************************************************************************/
+#
+
+
 import os
 
 import torch
 import torch.nn as nn
-from . import lpips as backbone
+from . import backbones
 
 import pdb
 
@@ -30,13 +42,13 @@ class LPIPS(nn.Module):
 
         if self.pnet_type in ["vgg", "vgg16"]:
             net = "vgg"
-            net_type = backbone.vgg16
+            net_type = backbones.vgg16
             self.channels = [64, 128, 256, 512, 512]
         elif self.pnet_type == "alex":
-            net_type = backbone.alexnet
+            net_type = backbones.alexnet
             self.channels = [64, 192, 384, 256, 256]
         elif self.pnet_type == "squeeze":
-            net_type = backbone.squeezenet
+            net_type = backbones.squeezenet
             self.channels = [64, 128, 256, 384, 384, 512, 512]
         self.L = len(self.channels)
 

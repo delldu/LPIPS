@@ -1,3 +1,5 @@
+
+
 import image_likeness
 
 from PIL import Image
@@ -5,11 +7,10 @@ import torch
 import torchvision.transforms as T
 import time
 
-if __name__ == "__main__":
-    """Test."""
 
+def test_model(model_name):
     device = "cuda"
-    model = image_likeness.get_model()
+    model = image_likeness.get_model(model_name)
     model = model.to(device)
     model.eval()
 
@@ -31,7 +32,7 @@ if __name__ == "__main__":
             ex_d3 = model(torch.cat([ex_p0, ex_p1], dim=0))
             ex_d4 = model(torch.cat([ex_p1, ex_p0], dim=0))
 
-    print("Spend time: ", time.time() - start_time)
+    print(f"{model_name} spend time: ", time.time() - start_time)
     print(
         "Loss: (ref-p0: %.3f > ref-p1: %.3f)" % (ex_d0.mean(), ex_d1.mean())
     )
@@ -44,3 +45,12 @@ if __name__ == "__main__":
         "Loss: (p0-p1: %.3f == p1-p0: %.3f)" % (ex_d3.mean(), ex_d4.mean())
     )
 
+
+
+
+if __name__ == "__main__":
+    """Test."""
+
+    test_model("alex")
+    test_model("squeeze")
+    test_model("vgg16")
