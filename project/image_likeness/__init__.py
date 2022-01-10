@@ -1,5 +1,4 @@
 import os
-import inspect
 
 import torch
 import torch.nn as nn
@@ -126,4 +125,3 @@ class NetLinLayer(nn.Module):
 def get_model(model_name="squeeze"):
     model = LPIPS(net=model_name)
     return model
-
